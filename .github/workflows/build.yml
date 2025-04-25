@@ -2,15 +2,15 @@ name: Build OpenTranslator
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    tags:
+      - "v*"
   workflow_dispatch:
 
 jobs:
   build-windows:
     runs-on: windows-latest
-
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v3
 
@@ -45,22 +45,21 @@ jobs:
             --collect-all "PyQt6-WebEngine" ^
             "run.py"
 
-      - name: Create release assets
+      - name: Zip Windows Release
         run: |
-          mkdir release
-          copy dist\OpenTranslator.exe release\
-          copy icon.ico release\
-          copy README_Windows.md release\README.md
+          cd dist
+          Compress-Archive -Path OpenTranslator.exe -DestinationPath OpenTranslator-Windows.zip
 
-      - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v3
+      - name: Upload Windows Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          name: OpenTranslator-Windows
-          path: release/
+          files: dist/OpenTranslator-Windows.zip
 
   build-macos:
     runs-on: macos-latest
-
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v3
 
@@ -80,62 +79,13 @@ jobs:
           chmod +x build_mac.sh
           ./build_mac.sh
 
-      - name: Create release assets
+      - name: Zip macOS Release
         run: |
-          mkdir -p release
-          cp -r dist/OpenTranslator.app release/
-          cp icon.icns release/
-          cp README.md release/
+          cd dist
+          zip -r OpenTranslator-macOS.zip OpenTranslator.app
 
-      - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v3
+      - name: Upload macOS Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          name: OpenTranslator-macOS
-          path: release/
-
-  create-release:
-    needs: [build-windows, build-macos]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download Windows artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: OpenTranslator-Windows
-          path: windows
-
-      - name: Download macOS artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: OpenTranslator-macOS
-          path: macos
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: OpenTranslator Release ${{ github.ref }}
-          draft: false
-          prerelease: false
-
-      - name: Upload Windows Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./windows/OpenTranslator.exe
-          asset_name: OpenTranslator.exe
-          asset_content_type: application/x-msdownload
-
-      - name: Upload macOS Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./macos/OpenTranslator.app
-          asset_name: OpenTranslator.app.zip
-          asset_content_type: application/zip
+          files: dist/OpenTranslator-macOS.zip
