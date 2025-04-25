@@ -42,3 +42,7 @@ Desktop.ini
 *.spec
 
 *.log 
+
+# Output directory
+Output/
+Output/**
