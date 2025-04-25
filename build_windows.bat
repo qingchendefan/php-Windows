@@ -1,45 +1,48 @@
 @echo off
-setlocal EnableDelayedExpansion
-
 echo ========================================
 echo OpenTranslator Windows 打包工具
 echo ========================================
 echo.
 
-:: 检查 PyInstaller
-pip show pyinstaller >nul 2>&1
-if errorlevel 1 (
-    echo [信息] 正在安装 PyInstaller...
-    pip install pyinstaller
-)
-
-:: 检查 Inno Setup
-where iscc >nul 2>&1
-if errorlevel 1 (
-    echo [错误] 未找到 Inno Setup 编译器！
-    echo 请从 https://jrsoftware.org/isdl.php 下载并安装 Inno Setup
-    pause
+REM 检查 Python 环境
+python --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo 错误: 未找到 Python，请先安装 Python
     exit /b 1
 )
 
-:: 清理之前的构建
-echo [信息] 清理之前的构建...
-rmdir /s /q build dist Output 2>nul
-del /f /q OpenTranslator.spec 2>nul
+REM 检查 pip
+pip --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo 错误: 未找到 pip，请先安装 pip
+    exit /b 1
+)
 
-:: 创建输出目录
-mkdir Output 2>nul
+REM 检查 PyInstaller
+pip show pyinstaller >nul 2>&1
+if %errorlevel% neq 0 (
+    echo 正在安装 PyInstaller...
+    pip install pyinstaller
+)
 
-:: 使用 PyInstaller 打包应用
-echo [信息] 正在打包应用程序...
-pyinstaller --clean ^
+REM 清理之前的构建
+echo 清理之前的构建...
+if exist build rmdir /s /q build
+if exist dist rmdir /s /q dist
+if exist Output rmdir /s /q Output
+if exist OpenTranslator.spec del OpenTranslator.spec
+
+REM 创建输出目录
+mkdir Output
+
+REM 使用 PyInstaller 打包
+echo 正在打包应用程序...
+pyinstaller --noconfirm --onefile --windowed ^
     --name "OpenTranslator" ^
     --icon "icon.ico" ^
-    --windowed ^
-    --add-data "icon.png;." ^
     --add-data "icon.ico;." ^
+    --add-data "icon.png;." ^
     --add-data "translator.py;." ^
-    --add-data "run.py;." ^
     --hidden-import "PyQt6.QtCore" ^
     --hidden-import "PyQt6.QtGui" ^
     --hidden-import "PyQt6.QtWidgets" ^
@@ -50,77 +53,20 @@ pyinstaller --clean ^
     --collect-all "PyQt6-Qt6" ^
     --collect-all "PyQt6-sip" ^
     --collect-all "PyQt6-WebEngine" ^
-    --noconfirm ^
-    --onefile ^
-    run.py
+    "run.py"
 
-if errorlevel 1 (
-    echo [错误] PyInstaller 打包失败！
-    pause
-    exit /b 1
-)
+REM 复制文件到输出目录
+echo 复制文件到输出目录...
+copy "dist\OpenTranslator.exe" "Output\"
+copy "icon.ico" "Output\"
 
-:: 创建 Inno Setup 脚本
-echo [信息] 创建安装程序...
-(
-echo #define MyAppName "OpenTranslator"
-echo #define MyAppVersion "1.0"
-echo #define MyAppPublisher "OpenTranslator Team"
-echo #define MyAppURL "https://github.com/yourusername/OpenTranslator"
-echo #define MyAppExeName "OpenTranslator.exe"
-echo.
-echo [Setup]
-echo AppId=^\{A1B2C3D4-E5F6-4A5B-8C7D-9E0F1A2B3C4D^}
-echo AppName=^#MyAppName
-echo AppVersion=^#MyAppVersion
-echo AppPublisher=^#MyAppPublisher
-echo AppPublisherURL=^#MyAppURL
-echo AppSupportURL=^#MyAppURL
-echo AppUpdatesURL=^#MyAppURL
-echo DefaultDirName=^\{autopf^}\^#MyAppName
-echo DefaultGroupName=^#MyAppName
-echo AllowNoIcons=yes
-echo OutputDir=Output
-echo OutputBaseFilename=OpenTranslator-Setup
-echo Compression=lzma
-echo SolidCompression=yes
-echo WizardStyle=modern
-echo.
-echo [Languages]
-echo Name: "english"; MessagesFile: "compiler:Default.isl"
-echo Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
-echo.
-echo [Tasks]
-echo Name: "desktopicon"; Description: "^\{cm:CreateDesktopIcon^}"; GroupDescription: "^\{cm:AdditionalIcons^}"; Flags: unchecked
-echo.
-echo [Files]
-echo Source: "dist\OpenTranslator.exe"; DestDir: "^\{app^}"; Flags: ignoreversion
-echo Source: "icon.ico"; DestDir: "^\{app^}"; Flags: ignoreversion
-echo.
-echo [Icons]
-echo Name: "^\{group^}\^#MyAppName"; Filename: "^\{app^}\^#MyAppExeName"
-echo Name: "^\{group^}\^\{cm:UninstallProgram,^#MyAppName^}"; Filename: "^\{uninstallexe^}"
-echo Name: "^\{commondesktop^}\^#MyAppName"; Filename: "^\{app^}\^#MyAppExeName"; Tasks: desktopicon
-echo.
-echo [Run]
-echo Filename: "^\{app^}\^#MyAppExeName"; Description: "^\{cm:LaunchProgram,^#StringChange(MyAppName, '&', '&&')^^}"; Flags: nowait postinstall skipifsilent
-) > installer.iss
-
-:: 编译安装程序
-iscc installer.iss
-
-if errorlevel 1 (
-    echo [错误] 安装程序创建失败！
-    pause
-    exit /b 1
-)
-
+echo 构建完成！应用程序位于 Output 目录
+echo 请将 Output 目录下的文件打包成 zip 文件分发给用户
 echo.
 echo ========================================
-echo 构建成功完成！
-echo.
-echo 安装程序位于: Output\OpenTranslator-Setup.exe
+echo 使用说明：
+echo 1. 解压下载的 zip 文件到任意目录
+echo 2. 双击 OpenTranslator.exe 运行程序
+echo 3. 如果遇到安全警告，请点击"更多信息"，然后选择"仍要运行"
 echo ========================================
-echo.
-
-pause 
+echo. 
