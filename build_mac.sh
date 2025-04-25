@@ -1,15 +1,37 @@
 #!/bin/bash
 
-# 确保在虚拟环境中
-source venv/bin/activate
+echo "========================================"
+echo "OpenTranslator macOS 打包工具"
+echo "========================================"
+echo
 
-# 安装打包所需的依赖
-pip install pyinstaller
+# 检查 Python 环境
+if ! command -v python3 &> /dev/null; then
+    echo "[错误] 未找到 Python3，请先安装 Python3"
+    exit 1
+fi
+
+# 检查 pip
+if ! command -v pip3 &> /dev/null; then
+    echo "[错误] 未找到 pip3，请先安装 pip3"
+    exit 1
+fi
+
+# 检查 PyInstaller
+if ! pip3 show pyinstaller &> /dev/null; then
+    echo "[信息] 正在安装 PyInstaller..."
+    pip3 install pyinstaller
+fi
 
 # 清理之前的构建
-rm -rf build dist
+echo "[信息] 清理之前的构建..."
+rm -rf build dist Output OpenTranslator.spec 2>/dev/null
+
+# 创建输出目录
+mkdir -p Output 2>/dev/null
 
 # 使用 PyInstaller 打包应用
+echo "[信息] 正在打包应用程序..."
 pyinstaller --clean \
     --name "OpenTranslator" \
     --icon "icon.icns" \
@@ -24,41 +46,70 @@ pyinstaller --clean \
     --hidden-import "PyQt6.QtNetwork" \
     --hidden-import "PyQt6.QtWebEngineCore" \
     --hidden-import "PyQt6.QtWebEngineWidgets" \
-    --collect-all "PyQt6" \
-    --collect-all "PyQt6-Qt6" \
-    --collect-all "PyQt6-sip" \
+    --exclude-module "PyQt6.QtBluetooth" \
+    --exclude-module "PyQt6.Qt3DAnimation" \
+    --exclude-module "PyQt6.Qt3DCore" \
+    --exclude-module "PyQt6.Qt3DExtras" \
+    --exclude-module "PyQt6.Qt3DInput" \
+    --exclude-module "PyQt6.Qt3DLogic" \
+    --exclude-module "PyQt6.Qt3DQuick" \
+    --exclude-module "PyQt6.Qt3DRender" \
+    --exclude-module "PyQt6.QtDesigner" \
+    --exclude-module "PyQt6.QtHelp" \
+    --exclude-module "PyQt6.QtMultimedia" \
+    --exclude-module "PyQt6.QtMultimediaWidgets" \
+    --exclude-module "PyQt6.QtNfc" \
+    --exclude-module "PyQt6.QtOpenGL" \
+    --exclude-module "PyQt6.QtOpenGLWidgets" \
+    --exclude-module "PyQt6.QtPdf" \
+    --exclude-module "PyQt6.QtPdfWidgets" \
+    --exclude-module "PyQt6.QtPositioning" \
+    --exclude-module "PyQt6.QtQml" \
+    --exclude-module "PyQt6.QtQuick" \
+    --exclude-module "PyQt6.QtQuick3D" \
+    --exclude-module "PyQt6.QtQuickWidgets" \
+    --exclude-module "PyQt6.QtRemoteObjects" \
+    --exclude-module "PyQt6.QtSensors" \
+    --exclude-module "PyQt6.QtSerialPort" \
+    --exclude-module "PyQt6.QtSpatialAudio" \
+    --exclude-module "PyQt6.QtSql" \
+    --exclude-module "PyQt6.QtStateMachine" \
+    --exclude-module "PyQt6.QtSvg" \
+    --exclude-module "PyQt6.QtSvgWidgets" \
+    --exclude-module "PyQt6.QtTest" \
+    --exclude-module "PyQt6.QtTextToSpeech" \
+    --exclude-module "PyQt6.QtWebEngineQuick" \
+    --exclude-module "PyQt6.QtWebSockets" \
+    --exclude-module "PyQt6.QtXml" \
     --noconfirm \
     --onedir \
     run.py
 
-# 获取 Qt 库路径
-QT_LIB_PATH=$(python3 -c "from PyQt6.QtCore import QLibraryInfo; print(QLibraryInfo.path(QLibraryInfo.LibraryPath.LibrariesPath))")
-QT_PLUGIN_PATH=$(python3 -c "from PyQt6.QtCore import QLibraryInfo; print(QLibraryInfo.path(QLibraryInfo.LibraryPath.PluginsPath))")
-QT_QML_PATH=$(python3 -c "from PyQt6.QtCore import QLibraryInfo; print(QLibraryInfo.path(QLibraryInfo.LibraryPath.QmlModulesPath))")
+if [ $? -ne 0 ]; then
+    echo "[错误] PyInstaller 打包失败！"
+    exit 1
+fi
 
-# 创建应用程序包结构
+# 创建应用程序包
+echo "[信息] 创建应用程序包..."
 mkdir -p "dist/OpenTranslator.app/Contents/MacOS"
 mkdir -p "dist/OpenTranslator.app/Contents/Resources"
 mkdir -p "dist/OpenTranslator.app/Contents/Frameworks"
 mkdir -p "dist/OpenTranslator.app/Contents/PlugIns"
-mkdir -p "dist/OpenTranslator.app/Contents/Qml"
 
 # 复制可执行文件和资源
 cp -r "dist/OpenTranslator"/* "dist/OpenTranslator.app/Contents/MacOS/"
 cp "icon.icns" "dist/OpenTranslator.app/Contents/Resources/"
 
-# 复制 Qt 框架和插件
-cp -R "$QT_LIB_PATH"/* "dist/OpenTranslator.app/Contents/Frameworks/"
-cp -R "$QT_PLUGIN_PATH"/* "dist/OpenTranslator.app/Contents/PlugIns/"
-cp -R "$QT_QML_PATH"/* "dist/OpenTranslator.app/Contents/Qml/"
-
-# 创建 qt.conf
-cat > "dist/OpenTranslator.app/Contents/Resources/qt.conf" << EOF
-[Paths]
-Plugins = PlugIns
-Libraries = Frameworks
-Qml2Imports = Qml
+# 创建启动脚本
+cat > "dist/OpenTranslator.app/Contents/MacOS/launch.sh" << EOF
+#!/bin/bash
+cd "\$(dirname "\$0")"
+export DYLD_LIBRARY_PATH="\$(dirname "\$0")/../Frameworks"
+export QT_PLUGIN_PATH="\$(dirname "\$0")/../PlugIns"
+exec ./OpenTranslator 2>&1 | tee ~/Library/Logs/OpenTranslator.log
 EOF
+chmod +x "dist/OpenTranslator.app/Contents/MacOS/launch.sh"
 
 # 创建 Info.plist
 cat > "dist/OpenTranslator.app/Contents/Info.plist" << EOF
@@ -69,7 +120,7 @@ cat > "dist/OpenTranslator.app/Contents/Info.plist" << EOF
     <key>CFBundleDisplayName</key>
     <string>OpenTranslator</string>
     <key>CFBundleExecutable</key>
-    <string>OpenTranslator</string>
+    <string>launch.sh</string>
     <key>CFBundleIconFile</key>
     <string>icon.icns</string>
     <key>CFBundleIdentifier</key>
@@ -100,17 +151,25 @@ EOF
 
 # 修复权限
 chmod +x "dist/OpenTranslator.app/Contents/MacOS/OpenTranslator"
+chmod +x "dist/OpenTranslator.app/Contents/MacOS/launch.sh"
 
-# 创建分发包
-cd dist
-zip -r OpenTranslator-macOS.zip OpenTranslator.app
-cd ..
+# 复制应用程序到输出目录
+echo "[信息] 复制应用程序到输出目录..."
+cp -R "dist/OpenTranslator.app" "Output/"
 
-echo "应用程序已打包完成。"
-echo "分发包已创建：dist/OpenTranslator-macOS.zip"
-echo ""
-echo "注意："
-echo "1. 首次运行时，请右键点击应用程序，选择"打开"。"
-echo "2. 如果提示安全性问题，请前往系统偏好设置 > 安全性与隐私 > 通用，点击"仍要打开"。"
-echo "3. 如果应用程序仍然无法运行，请尝试在终端中运行以下命令来查看错误信息："
-echo "   open -a OpenTranslator.app" 
+echo
+echo "========================================"
+echo "构建成功完成！"
+echo
+echo "应用程序位于: Output/OpenTranslator.app"
+echo
+echo "使用说明："
+echo "1. 将 OpenTranslator.app 拖到 Applications 文件夹"
+echo "2. 双击应用程序即可运行"
+echo "3. 首次运行时，如果提示安全性问题，请："
+echo "   - 右键点击应用程序，选择"打开""
+echo "   - 或在系统偏好设置 > 安全性与隐私 > 通用 中允许运行"
+echo "4. 如果应用程序仍然无法运行，请检查日志文件："
+echo "   ~/Library/Logs/OpenTranslator.log"
+echo "========================================"
+echo 

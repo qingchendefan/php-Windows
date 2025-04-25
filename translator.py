@@ -1,9 +1,11 @@
 import sys
 import platform
+import os
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QSystemTrayIcon, QMenu
 from PyQt6.QtCore import Qt, QTimer, QPoint, QUrl, QRect, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QCursor, QColor, QPainter, QIcon, QPen, QAction
 from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtWebEngineCore import QWebEngineProfile, QWebEngineSettings, QWebEnginePage
 
 class TitleBarButton(QPushButton):
     def __init__(self, color, parent=None):
@@ -25,6 +27,21 @@ class TitleBarButton(QPushButton):
 class TranslatorWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        
+        # 创建配置目录
+        self.profile_dir = os.path.expanduser('~/.opentranslator/profile')
+        os.makedirs(self.profile_dir, exist_ok=True)
+        
+        # 创建持久化的WebEngine配置
+        self.profile = QWebEngineProfile('translator')
+        self.profile.setPersistentStoragePath(self.profile_dir)
+        self.profile.setPersistentCookiesPolicy(QWebEngineProfile.PersistentCookiesPolicy.AllowPersistentCookies)
+        
+        # 配置设置
+        settings = self.profile.settings()
+        settings.setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled, True)
+        settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
+        
         self.initUI()
         self.is_hidden = False
         self.is_pinned = False
@@ -129,6 +146,11 @@ class TranslatorWindow(QMainWindow):
         
         # 创建Web视图
         self.web_view = QWebEngineView()
+        
+        # 创建使用自定义配置的页面
+        page = QWebEnginePage(self.profile, self.web_view)
+        self.web_view.setPage(page)
+        
         self.web_view.setUrl(QUrl("https://translate.google.com/"))
         self.web_view.setStyleSheet("""
             QWebEngineView {
@@ -417,16 +439,11 @@ class TranslatorWindow(QMainWindow):
         self.activateWindow()
 
     def closeEvent(self, event):
-        """重写关闭事件，使关闭按钮最小化到托盘而不是退出"""
-        event.ignore()
-        self.hide()
-        # 显示通知
-        self.tray_icon.showMessage(
-            "翻译工具",
-            "应用程序已最小化到系统托盘",
-            QSystemTrayIcon.MessageIcon.Information,
-            2000
-        )
+        """重写关闭事件，使关闭按钮直接退出程序"""
+        # 接受关闭事件
+        event.accept()
+        # 退出应用程序
+        QApplication.instance().quit()
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

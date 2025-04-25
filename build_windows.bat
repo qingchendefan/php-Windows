@@ -6,12 +6,18 @@ echo OpenTranslator Windows 打包工具
 echo ========================================
 echo.
 
+:: 检查 PyInstaller
+pip show pyinstaller >nul 2>&1
+if errorlevel 1 (
+    echo [信息] 正在安装 PyInstaller...
+    pip install pyinstaller
+)
+
 :: 检查 Inno Setup
-if not exist "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" (
-    echo [错误] 未找到 Inno Setup 6！
-    echo 请先安装 Inno Setup 6
-    echo 下载地址：https://jrsoftware.org/isdl.php
-    echo 注意：请安装到默认位置 C:\Program Files (x86)\Inno Setup 6
+where iscc >nul 2>&1
+if errorlevel 1 (
+    echo [错误] 未找到 Inno Setup 编译器！
+    echo 请从 https://jrsoftware.org/isdl.php 下载并安装 Inno Setup
     pause
     exit /b 1
 )
@@ -19,7 +25,7 @@ if not exist "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" (
 :: 清理之前的构建
 echo [信息] 清理之前的构建...
 rmdir /s /q build dist Output 2>nul
-del /f /q OpenTranslator.spec installer.iss 2>nul
+del /f /q OpenTranslator.spec 2>nul
 
 :: 创建输出目录
 mkdir Output 2>nul
@@ -43,9 +49,9 @@ pyinstaller --clean ^
     --collect-all "PyQt6" ^
     --collect-all "PyQt6-Qt6" ^
     --collect-all "PyQt6-sip" ^
+    --collect-all "PyQt6-WebEngine" ^
     --noconfirm ^
     --onefile ^
-    --runtime-hook add_dll_directory.py ^
     run.py
 
 if errorlevel 1 (
@@ -54,71 +60,57 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: 创建运行时钩子文件
-echo [信息] 创建运行时钩子...
-(
-echo import os
-echo import sys
-echo if hasattr(sys, '_MEIPASS^):
-echo     os.add_dll_directory(sys._MEIPASS^)
-) > add_dll_directory.py
-
 :: 创建 Inno Setup 脚本
-echo [信息] 正在创建安装程序脚本...
+echo [信息] 创建安装程序...
 (
 echo #define MyAppName "OpenTranslator"
-echo #define MyAppVersion "1.0.0"
-echo #define MyAppPublisher "OpenTranslator"
+echo #define MyAppVersion "1.0"
+echo #define MyAppPublisher "OpenTranslator Team"
+echo #define MyAppURL "https://github.com/yourusername/OpenTranslator"
 echo #define MyAppExeName "OpenTranslator.exe"
 echo.
 echo [Setup]
-echo AppId={{8F4E37D1-CD72-4F33-B2E3-99BF3B9F1C76}
-echo AppName={#MyAppName}
-echo AppVersion={#MyAppVersion}
-echo AppPublisher={#MyAppPublisher}
-echo DefaultDirName={autopf}\{#MyAppName}
-echo DefaultGroupName={#MyAppName}
+echo AppId=^\{A1B2C3D4-E5F6-4A5B-8C7D-9E0F1A2B3C4D^}
+echo AppName=^#MyAppName
+echo AppVersion=^#MyAppVersion
+echo AppPublisher=^#MyAppPublisher
+echo AppPublisherURL=^#MyAppURL
+echo AppSupportURL=^#MyAppURL
+echo AppUpdatesURL=^#MyAppURL
+echo DefaultDirName=^\{autopf^}\^#MyAppName
+echo DefaultGroupName=^#MyAppName
+echo AllowNoIcons=yes
 echo OutputDir=Output
-echo OutputBaseFilename=OpenTranslator_Setup
-echo Compression=lzma2/ultra64
+echo OutputBaseFilename=OpenTranslator-Setup
+echo Compression=lzma
 echo SolidCompression=yes
 echo WizardStyle=modern
-echo PrivilegesRequired=lowest
-echo DisableProgramGroupPage=yes
-echo DisableWelcomePage=no
-echo DisableDirPage=no
-echo DisableFinishedPage=no
 echo.
 echo [Languages]
 echo Name: "english"; MessagesFile: "compiler:Default.isl"
 echo Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 echo.
 echo [Tasks]
-echo Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-echo Name: "startupicon"; Description: "开机自动启动"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+echo Name: "desktopicon"; Description: "^\{cm:CreateDesktopIcon^}"; GroupDescription: "^\{cm:AdditionalIcons^}"; Flags: unchecked
 echo.
 echo [Files]
-echo Source: "dist\OpenTranslator.exe"; DestDir: "{app}"; Flags: ignoreversion
-echo Source: "icon.ico"; DestDir: "{app}"; Flags: ignoreversion
+echo Source: "dist\OpenTranslator.exe"; DestDir: "^\{app^}"; Flags: ignoreversion
+echo Source: "icon.ico"; DestDir: "^\{app^}"; Flags: ignoreversion
 echo.
 echo [Icons]
-echo Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\icon.ico"
-echo Name: "{group}\卸载 {#MyAppName}"; Filename: "{uninstallexe}"
-echo Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\icon.ico"; Tasks: desktopicon
-echo Name: "{commonstartup}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\icon.ico"; Tasks: startupicon
+echo Name: "^\{group^}\^#MyAppName"; Filename: "^\{app^}\^#MyAppExeName"
+echo Name: "^\{group^}\^\{cm:UninstallProgram,^#MyAppName^}"; Filename: "^\{uninstallexe^}"
+echo Name: "^\{commondesktop^}\^#MyAppName"; Filename: "^\{app^}\^#MyAppExeName"; Tasks: desktopicon
 echo.
 echo [Run]
-echo Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
-echo.
-echo [UninstallDelete]
-echo Type: filesandordirs; Name: "{app}"
+echo Filename: "^\{app^}\^#MyAppExeName"; Description: "^\{cm:LaunchProgram,^#StringChange(MyAppName, '&', '&&')^^}"; Flags: nowait postinstall skipifsilent
 ) > installer.iss
 
 :: 编译安装程序
-echo [信息] 正在创建安装程序...
-"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+iscc installer.iss
+
 if errorlevel 1 (
-    echo [错误] 创建安装程序失败！
+    echo [错误] 安装程序创建失败！
     pause
     exit /b 1
 )
@@ -127,7 +119,7 @@ echo.
 echo ========================================
 echo 构建成功完成！
 echo.
-echo 安装程序位于: Output\OpenTranslator_Setup.exe
+echo 安装程序位于: Output\OpenTranslator-Setup.exe
 echo ========================================
 echo.
 
